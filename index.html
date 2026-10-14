@@ -261,6 +261,39 @@ a { color: var(--accent); }
 .slide { width: 100%; margin: 2px 0 0; accent-color: var(--given-ink); height: 20px; cursor: pointer; }
 .msg { font-size: 0.875rem; color: var(--ink); padding: 8px 12px; border-radius: 6px; background: color-mix(in srgb, var(--bad) 12%, var(--surface)); border: 1px solid color-mix(in srgb, var(--bad) 45%, transparent); }
 
+/* plain-words explainer */
+.intro { min-width: 0; background: var(--surface); border: 1px solid var(--border); border-radius: 10px; }
+.intro > summary { display: flex; align-items: center; gap: 10px; padding: 12px 16px; cursor: pointer; list-style: none; font: 700 1rem/1.3 var(--font-display); color: var(--ink); border-radius: 10px; }
+.intro > summary::-webkit-details-marker { display: none; }
+.intro > summary::before { content: ""; flex: none; width: 7px; height: 7px; margin: 0 2px; border-right: 2px solid var(--ink-2); border-bottom: 2px solid var(--ink-2); transform: rotate(-45deg); transition: transform 0.15s; }
+.intro[open] > summary::before { transform: translateY(-2px) rotate(45deg); }
+.intro > summary:hover { background: var(--surface-2); }
+.intro > summary:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
+.intro-body { display: grid; gap: 14px; padding: 2px 16px 16px; min-width: 0; }
+.intro .story { max-width: 70ch; font-size: 1rem; line-height: 1.6; color: var(--ink); }
+.intro-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 19rem), 1fr)); gap: 14px 28px; }
+.intro h3 { margin: 0 0 6px; font: 600 0.75rem/1.3 var(--font-body); letter-spacing: 0.05em; text-transform: uppercase; color: var(--muted); }
+.terms { margin: 0; display: grid; gap: 7px; }
+.terms > div { line-height: 1.45; }
+.terms dt { display: inline; font-weight: 600; color: var(--ink); }
+.terms dd { display: inline; margin: 0; color: var(--ink-2); }
+.steps { margin: 0; padding-left: 1.35em; display: grid; gap: 7px; color: var(--ink-2); line-height: 1.45; }
+.steps li::marker { color: var(--ink); font-weight: 700; }
+.be-setup { display: grid; gap: 8px; max-width: 70ch; }
+.be-setup .bul li { max-width: none; }
+.be-control { display: grid; grid-template-columns: auto minmax(8rem, 20rem) auto; align-items: center; justify-self: start; max-width: 100%; gap: 6px 12px; padding: 10px 14px; border-radius: 8px; background: var(--surface-2); }
+.be-control label { font-weight: 600; font-size: 0.9375rem; color: var(--ink); }
+.be-control output { font: 700 1rem/1.2 var(--font-mono); color: var(--given-ink); white-space: nowrap; }
+.be-out { max-width: 70ch; padding: 10px 14px; border-radius: 0 8px 8px 0; border-left: 3px solid var(--part-b); background: var(--surface-2); color: var(--ink); }
+.be-out.p { border-left-color: var(--s3); background: color-mix(in srgb, var(--s3) 9%, var(--surface)); }
+.be-out.t { border-left-color: var(--s1); background: color-mix(in srgb, var(--s1) 9%, var(--surface)); }
+.be-notes { max-width: 70ch; font-size: 0.9375rem; color: var(--ink-2); }
+.be-notes b { color: var(--ink); }
+@media (max-width: 600px) {
+  .be-control { grid-template-columns: minmax(0, 1fr) auto; justify-self: stretch; }
+  .be-control label { grid-column: 1 / -1; }
+}
+
 /* answers */
 .cells { display: grid; grid-template-columns: repeat(var(--cols, 4), minmax(0, 1fr)); gap: 8px; }
 .cell {
@@ -608,10 +641,11 @@ const fmt = {
   raw(x, d = 6) { if (!Number.isFinite(x)) return '?'; const s = String(+x.toFixed(d)); return s === '-0' ? '0' : s; },
   // short axis money
   axis(x) {
+    // whole dollars below $10k ($1,050, $1,100: never two ticks with the same label), k and M above
     const a = Math.abs(x), sg = x < 0 ? MINUS : '';
-    if (a >= 1e6) return sg + '$' + +(a / 1e6).toFixed(a >= 1e7 ? 0 : 1) + 'M';
-    if (a >= 1e3) return sg + '$' + +(a / 1e3).toFixed(a >= 1e4 ? 0 : 1) + 'k';
-    if (a >= 100 || a === 0) return sg + '$' + Math.round(a);
+    if (a >= 1e6) return sg + '$' + +(a / 1e6).toFixed(a >= 1e7 ? 0 : 2) + 'M';
+    if (a >= 1e4) return sg + '$' + +(a / 1e3).toFixed(a >= 1e5 ? 0 : 1) + 'k';
+    if (a >= 100 || a === 0) return sg + '$' + NF[0].format(Math.round(a));
     return sg + '$' + +a.toFixed(2);
   },
   axisPct(x) { return (x < 0 ? MINUS : '') + +(Math.abs(x) * 100).toFixed(2) + '%'; },
@@ -1084,13 +1118,23 @@ function setNavActive(id) {
   $('#topicSelect').value = id;
 }
 
+// plain-words explainer at the top of a topic; open by default, remembers if you collapse it
+function introHTML(def) {
+  const I = def.intro;
+  if (!I) return '';
+  let open = true;
+  try { open = localStorage.getItem('lab-intro') !== 'closed'; } catch (e) { /* storage unavailable */ }
+  const terms = I.terms ? `<div><h3>Words to know</h3><dl class="terms">${I.terms.map(([t, d]) => `<div><dt>${t}:</dt> <dd>${d}</dd></div>`).join('')}</dl></div>` : '';
+  const steps = I.steps ? `<div><h3>The recipe</h3><ol class="steps">${I.steps.map((x) => `<li>${x}</li>`).join('')}</ol></div>` : '';
+  return `<details class="intro" data-intro${open ? ' open' : ''}><summary>In plain words</summary><div class="intro-body"><p class="story">${I.story}</p><div class="intro-grid">${terms}${steps}</div></div></details>`;
+}
 function renderTopic(def) {
   current = def;
   const st = state[def.id] || (state[def.id] = defaults(def));
   const i = TOPICS.indexOf(def);
   const prev = TOPICS[i - 1], next = TOPICS[i + 1];
   const tabLabel = def.eyebrow ? esc(def.eyebrow) : `Tab <b>${def.id}</b> · ${esc(def.unit)}`;
-  let html = `<article class="topic" id="topic-${def.id}"><header class="t-head"><p class="eyebrow">${tabLabel}</p><h1>${esc(def.name)}</h1><p class="idea">${def.idea}</p></header>`;
+  let html = `<article class="topic" id="topic-${def.id}"><header class="t-head"><p class="eyebrow">${tabLabel}</p><h1>${esc(def.name)}</h1><p class="idea">${def.idea}</p></header>` + introHTML(def) + (def.introExtra || '');
   if (def.page) {
     html += def.page();
   } else {
@@ -1117,6 +1161,8 @@ function renderTopic(def) {
   const main = $('#main');
   main.innerHTML = html;
   setNavActive(def.id);
+  const det = main.querySelector('details[data-intro]');
+  if (det) det.addEventListener('toggle', () => { try { localStorage.setItem('lab-intro', det.open ? 'open' : 'closed'); } catch (e) { /* storage unavailable */ } });
   if (def.page) { if (def.after) def.after(main); return; }
   // wire inputs
   def.inputs.forEach((inp) => {
@@ -1142,6 +1188,7 @@ function renderTopic(def) {
   }));
   main.querySelectorAll('[data-mode]').forEach((b) => b.addEventListener('click', () => { st.mode = b.dataset.mode; syncInputs(def, st); update(); }));
   (def.charts || []).forEach((c, j) => wireTips($('#fig' + j)));
+  if (def.wireIntro) def.wireIntro(main, st);
   syncInputs(def, st);
   update();
 }
@@ -1197,6 +1244,7 @@ function drawCharts() {
     $('#figl' + j).innerHTML = lg ? legendHTML(lg) : '';
     c.draw($('#plot' + j), fig, st.v, st.o, st.mode);
   });
+  if (def.drawIntro) def.drawIntro(st.v, st.o, st.mode, st);
 }
 
 function route() {
@@ -3966,6 +4014,7 @@ topic({
     const rows = o.pis.map((p, i) => [`Year ${i + 1} one-year yield`, ex ? `=(1+${xp(o.r)})*(1+${xp(p)})-1` : `=${xp(o.r)}+${xp(p)}`, fmt.pt(o.R[i])]);
     const prod = o.R.map((x) => `(1+${fmt.raw(x, 8)})`).join('*');
     rows.push([`${v.N}-year yield`, `=(${prod})^(1/${v.N})-1`, fmt.pt(o.spotN)], [`${v.N}-year zero price`, `=${v.F}/(${prod})`, M(o.path[0])]);
+    rows.push(['Breakeven inflation', ex ? `=(${prod})^(1/${v.N})/(1+${xp(o.r)})-1` : `=(${prod})^(1/${v.N})-1-${xp(o.r)}`, fmt.pt(o.be)]);
     if (v.obs > 0) rows.push(['Term premium', `=(${v.F}/${v.obs})^(1/${v.N})-1-(${prod})^(1/${v.N})+1`, fmt.pt(o.tp)]);
     return rows;
   },
@@ -3976,6 +4025,7 @@ topic({
     const s = [
       { kind: 'home', title: 'One-year yields each year', lines },
       { kind: 'home', title: `${v.N}-year yield and zero price`, lines: [[`(${prod})^(1/${v.N})-1`, o.spotN], [`${tn(v.F)}/(${prod})`, o.path[0]]] },
+      { kind: 'home', title: 'Breakeven inflation', lines: [[ex ? `(${prod})^(1/${v.N})/${td(1 + o.r)}-1` : `(${prod})^(1/${v.N})-1-${tdp(o.r)}`, o.be]], note: ex ? 'That’s (1 + R) ÷ (1 + r) − 1, as a decimal.' : 'That’s R − r, as a decimal.' },
     ];
     if (v.obs > 0) s.push({ kind: 'home', title: 'Market yield and term premium', lines: [[`(${tn(v.F)}/${tn(v.obs)})^(1/${v.N})-1`, o.obsSpot], [`Ans-(${prod})^(1/${v.N})+1`, o.tp]] });
     return s;
@@ -4826,6 +4876,459 @@ topic({
     'First stable dividend D6': (o) => o.DN1, 'Terminal price at year 5': (o) => o.PN, 'PV of D1 to D5 with NPV()': (o) => o.pvDiv, 'Same price, one NPV() over the timeline': (o) => o.P0,
   },
 });
+
+/* ================================================================ plain-words explainers, shown at the top of every topic */
+const INTROS = {
+  '01': {
+    story: `Someone offers you equal payments over time, or one lump sum today. You can’t compare them by adding up the payments, because a dollar later is worth less than a dollar now: today’s dollar could be invested and grow. So you shrink each future payment back to today’s value, add those up, and compare that total with the lump sum.`,
+    terms: [
+      ['Annuity', 'equal payments at regular intervals.'],
+      ['Present value (PV)', 'what future money is worth today.'],
+      ['Discount rate', 'the return you could earn elsewhere. It’s what shrinks future money.'],
+      ['Annuity due', 'the first payment comes today instead of one period from now.'],
+    ],
+    steps: [
+      'Rate per period = APR ÷ payments per year. Number of payments = years × payments per year.',
+      'PV = payment × [1 − (1 + r)<sup>−n</sup>] ÷ r. On the TI: PMT = the payment, FV = 0, solve PV.',
+      'First payment today? Multiply by (1 + r), or switch the TI to BEGIN.',
+      'Compare with the lump sum. The bigger value today is the better deal.',
+    ],
+  },
+  '02': {
+    story: `This is an annuity that starts late, like a pension whose first check arrives in two years. The annuity formula always values payments as of one period before the first one, so it hands you a value at the wrong date. Then you move that one number back to today.`,
+    terms: [
+      ['Deferred', 'the payments begin after a waiting period.'],
+      ['Lands at', 'the date the annuity formula gives you a value for: one period before the first payment.'],
+    ],
+    steps: [
+      'Value the payments with the annuity formula. That value sits at period (first payment − 1).',
+      'Discount that single amount back to today: divide by (1 + r)<sup>first payment − 1</sup>.',
+      'A bonus with the last payment? Put it in FV on the same TVM screen.',
+    ],
+  },
+  '03': {
+    story: `A loan is an annuity seen from the bank’s side. The bank hands you money today, and your equal payments pay it back with interest. The payment, the amount, the rate and the number of payments are locked together, so if you know any three you can find the fourth.`,
+    terms: [
+      ['Principal', 'the amount you borrow.'],
+      ['APR', 'the quoted yearly rate. The monthly rate is APR ÷ 12.'],
+      ['Balloon', 'an extra lump sum due with the last payment.'],
+    ],
+    steps: [
+      'Monthly rate = APR ÷ 12. Number of payments = years × 12.',
+      'On the TI: PV = the loan (positive, you receive it), PMT negative (you pay it). Solve for whatever is missing.',
+      'In Excel: PMT, PV, RATE or NPER, with the same signs.',
+    ],
+  },
+  '04': {
+    story: `Partway through a loan, you don’t owe the original amount minus your payments, because part of every payment went to interest. What you still owe is simply today’s value of the payments you have left.`,
+    terms: [
+      ['Balance', 'what you still owe right after a payment.'],
+      ['Principal repaid', 'original loan − balance.'],
+      ['Interest paid', 'total payments made − principal repaid.'],
+    ],
+    steps: [
+      'Find the payment on the original loan.',
+      'Payments left = total payments − payments made.',
+      'Balance = PV of the payments left, at the loan rate.',
+    ],
+  },
+  '05': {
+    story: `Regular deposits grow into a future balance. Each deposit earns interest, and then that interest earns interest too, so the balance curves upward faster and faster. That snowball is compounding, and it’s why time matters so much.`,
+    terms: [
+      ['Future value (FV)', 'what your money grows to by a later date.'],
+      ['Compounding', 'earning interest on interest you already earned.'],
+      ['Deposits at the start', 'each deposit gets one extra period of growth (BEGIN on the TI).'],
+    ],
+    steps: [
+      'Rate per period and number of deposits.',
+      'FV = deposit × [(1 + r)<sup>n</sup> − 1] ÷ r, plus any starting balance × (1 + r)<sup>n</sup>.',
+      'Saving for a goal? Put the goal in FV and solve for PMT.',
+    ],
+  },
+  '06': {
+    story: `Retirement has two phases. While you work, you save. Once you retire, you withdraw. The amount you need on retirement day is the value, at that date, of all the withdrawals you plan to make. That number becomes your savings goal.`,
+    terms: [
+      ['Target', 'the balance you need on retirement day.'],
+      ['Two rates', 'what you earn while saving and while withdrawing can be different.'],
+    ],
+    steps: [
+      'Target = PV of the withdrawals, valued at retirement, at the retirement-phase rate.',
+      'Count what your current savings will already grow to by then.',
+      'Monthly saving = the payment that closes the gap, at the saving-phase rate.',
+    ],
+  },
+  '07': {
+    story: `Payments that grow every period, like a salary with a raise each year. Two forces pull against each other: growth makes later payments bigger, and discounting makes them worth less today. The formula nets the two.`,
+    terms: [
+      ['C1', 'the first payment. If you’re given this year’s payment, grow it once first.'],
+      ['g', 'growth per period. r is the discount rate per period.'],
+    ],
+    steps: [
+      'PV = C1 ÷ (r − g) × [1 − ((1 + g) ÷ (1 + r))<sup>n</sup>].',
+      'If r = g, use n × C1 ÷ (1 + r) instead.',
+      'First payment later than period 1? Discount the result back.',
+    ],
+  },
+  '08': {
+    story: `Payments that never stop, like a scholarship fund. Forever sounds like it should be worth infinite money, but payments far in the future are worth almost nothing today, so the total levels off at a finite number.`,
+    terms: [
+      ['Perpetuity', 'payments forever. A growing perpetuity’s payments grow at g.'],
+      ['r > g', 'required. If growth keeps up with discounting, the value really is infinite.'],
+    ],
+    steps: [
+      'Value = C1 ÷ (r − g). It’s a value one period before the first payment.',
+      'First payment later? Discount back.',
+      'An endowment can pay out endowment × (r − g) in year 1 and still last forever.',
+    ],
+  },
+  '09': {
+    story: `Banks quote an APR, but interest gets added several times a year and then earns interest itself, so what you really earn or pay over a year is a little more: the EAR. Comparing APRs with different compounding is like comparing prices for different package sizes. Convert everything to an EAR first.`,
+    terms: [
+      ['APR', 'the quoted yearly rate = rate per period × periods per year.'],
+      ['EAR', 'the true yearly rate after compounding.'],
+      ['m', 'compounding periods per year (12 = monthly).'],
+    ],
+    steps: [
+      'APR to EAR: (1 + APR ÷ m)<sup>m</sup> − 1. On the TI: ►Eff(.',
+      'EAR to APR: m × [(1 + EAR)<sup>1/m</sup> − 1]. On the TI: ►Nom(. Never just divide by m.',
+      'Continuous compounding: EAR = e<sup>APR</sup> − 1.',
+    ],
+  },
+  '10': {
+    story: `A payday lender charges a fee that sounds small, like $15 for every $100 for two weeks. But a year holds 26 two-week periods, so as a yearly rate it’s enormous. Turning the fee into a rate per period, and then a yearly rate, shows the true cost.`,
+    terms: [
+      ['Rate per period', 'fee ÷ the cash you actually get.'],
+      ['Periods per year', '365 ÷ the loan length in days.'],
+    ],
+    steps: [
+      'Rate per period = fee ÷ cash received.',
+      'APR = rate per period × periods per year.',
+      'EAR = (1 + rate per period)<sup>periods per year</sup> − 1.',
+    ],
+  },
+  '11': {
+    story: `The bank figures your payment on the full loan amount but keeps a fee up front, so you walk away with less cash. You make the same payments for less money, which means your true rate is higher than the quoted one.`,
+    terms: [
+      ['Face amount', 'the loan amount the payment is based on.'],
+      ['Fee-adjusted APR', 'the rate that makes your payments worth the cash you actually got.'],
+    ],
+    steps: [
+      'Payment: on the face amount, at the contract APR.',
+      'Cash you get = face − fee.',
+      'Solve for the rate with PV = the cash you get and the same payment (TI: solve I%).',
+    ],
+  },
+  '12': {
+    story: `Paying something now to save money later, like buying mortgage points for a lower rate, is an investment. It’s worth it only if today’s value of all the future savings beats what you pay now.`,
+    terms: [
+      ['NPV', 'net present value = PV of the benefits − the cost today. Positive means do it.'],
+      ['Break-even', 'how long until the savings have paid back the fee.'],
+    ],
+    steps: [
+      'Savings per period = old payment − new payment.',
+      'PV of the savings over the time you’ll actually keep the loan.',
+      'NPV = PV − fee.',
+    ],
+  },
+  '13': {
+    story: `The cheaper car to buy isn’t always the cheaper car to own. Add up everything each choice costs you in today’s dollars: the price, plus the PV of running costs like fuel, minus the PV of what you sell it for later. Pick the lower total.`,
+    terms: [
+      ['Net present cost', 'price + PV of running costs − PV of resale.'],
+    ],
+    steps: [
+      'Yearly running cost for each choice.',
+      'PV of those costs (an annuity), and PV of the resale value.',
+      'Net cost = price + PV(costs) − PV(resale). The lower one wins.',
+    ],
+  },
+  '14': {
+    story: `Car dealers often offer a choice: cash back (a rebate) or 0% financing. With the rebate you borrow less, but at a normal interest rate. With 0% you borrow the full price for free. With the same loan length, just compare the monthly payments.`,
+    terms: [
+      ['Rebate', 'money off the price, so you borrow less.'],
+      ['Break-even rate', 'the loan rate where both offers cost the same.'],
+    ],
+    steps: [
+      '0% payment = price ÷ months.',
+      'Rebate payment = the payment on (price − rebate) at your loan rate.',
+      'Lower payment wins. Different lengths or fees? Compare PVs at one rate instead.',
+    ],
+  },
+  '15': {
+    story: `A building pays you rent every year and a sale price when you sell it. Its worth to you is the PV of those rents plus the PV of the sale. If that’s more than the price, buying adds value: positive NPV.`,
+    terms: [
+      ['Rent growth', 'rents rise each year, so the rents are a growing annuity.'],
+      ['Property growth', 'the building’s value grows until you sell.'],
+    ],
+    steps: [
+      'PV of the rents (growing annuity, at your required return).',
+      'Sale price = price × (1 + growth)<sup>years</sup>, minus selling costs. Then take its PV.',
+      'NPV = PV(rents) + PV(sale) − price − closing costs.',
+    ],
+  },
+  '16': {
+    story: `The same building, worked backward: what’s the lowest first-year rent that still makes the deal break even? The future sale covers part of the price, and the rents have to cover the rest.`,
+    terms: [
+      ['Break-even', 'NPV = 0: you earn exactly your required return.'],
+    ],
+    steps: [
+      'PV of the sale.',
+      'The rents must supply: price + closing costs − PV of the sale.',
+      'Divide by the PV of $1 of growing rent to get the first-year rent.',
+    ],
+  },
+  '17': {
+    story: `A bond is a loan you make to a company or the government. They pay you interest (coupons) every period and give the face value back at the end. The bond’s price is today’s value of all that money, discounted at the yield the market wants right now.`,
+    terms: [
+      ['Face (par)', 'the amount repaid at maturity, often $1,000.'],
+      ['Coupon rate', 'annual coupon ÷ face. It’s set when the bond is issued and never changes.'],
+      ['Yield', 'the market’s discount rate for the bond. It changes every day.'],
+    ],
+    steps: [
+      'Coupon per period = face × coupon rate ÷ coupons per year.',
+      'Price = PV of the coupons + PV of the face.',
+      'Coupon rate above the yield → premium. Below → discount. Equal → par.',
+    ],
+  },
+  '18': {
+    story: `This is the last tab flipped around: now you know the price and want the yield. The yield to maturity (YTM) is the one discount rate that makes all the bond’s cash flows worth exactly its price. It’s the return you earn if you buy today and hold to the end.`,
+    terms: [
+      ['YTM', 'the return a bond pays at today’s price, held to maturity.'],
+      ['Coupon rate', 'coupons ÷ face, not ÷ price.'],
+    ],
+    steps: [
+      'On the TI: N, PV = −price, PMT = coupon, FV = face. Solve I%.',
+      'In Excel: RATE(n, coupon, −price, face) × coupons per year.',
+    ],
+  },
+  '19': {
+    story: `Two bonds are identical except that one pays bigger coupons. The bigger-coupon bond should cost more, but only by today’s value of its extra coupons.`,
+    terms: [
+      ['Same face, maturity and risk', 'so the face amounts cancel and only the coupons differ.'],
+    ],
+    steps: [
+      'Extra coupon per period.',
+      'PV of the extra coupons at the market yield.',
+      'Pay the extra price only if it’s less than that PV.',
+    ],
+  },
+  '20': {
+    story: `A zero-coupon bond pays nothing along the way, just the face value at maturity. You buy it below face, and the difference is your interest. Its price climbs toward face as maturity gets closer.`,
+    terms: [
+      ['Zero', 'a bond with no coupons.'],
+      ['Implied yield', 'the yield you earn if you pay a given price.'],
+    ],
+    steps: [
+      'Price = face ÷ (1 + r)<sup>n</sup>.',
+      'Yield from a price = (face ÷ price)<sup>1/n</sup> − 1.',
+      'Buy if your fair price is above the dealer’s price.',
+    ],
+  },
+  '21': {
+    story: `When market yields rise, old bonds with fixed payments look worse than new ones, so their prices fall. The longer the bond, the further away its money is, and the more its price moves.`,
+    terms: [
+      ['Basis point', '0.01%. 100 basis points = 1%.'],
+    ],
+    steps: [
+      'Price at the old yield and at the new yield.',
+      '% change = new price ÷ old price − 1.',
+      'Quick estimate for a zero: −n × (change in yield) ÷ (1 + old yield).',
+    ],
+  },
+  '22': {
+    story: `Riskier borrowers have to pay more. The yield investors require = the risk-free rate + a risk premium. If the premium widens, the same promised payments get discounted harder, so the price falls.`,
+    terms: [
+      ['Risk-free rate', 'the Treasury yield.'],
+      ['Risk premium (spread)', 'extra yield for the chance of not being paid.'],
+    ],
+    steps: [
+      'Required yield = risk-free + premium.',
+      'Price the bond at the old and the new yield.',
+      'Compare the two prices.',
+    ],
+  },
+  '23': {
+    story: `Bond prices are quoted as a percent of face: a quote of 106.5 on a $1,000 bond means $1,065. Current yield is the quick number, annual coupon ÷ price. It ignores the gain or loss you get when the bond pays face at maturity, which the YTM includes.`,
+    terms: [
+      ['Quote', 'price as a percent of face.'],
+      ['Current yield', 'annual coupon ÷ price.'],
+    ],
+    steps: [
+      'Price from the YTM, or the YTM from the price.',
+      'Quote = price ÷ face × 100. Current yield = annual coupon ÷ price.',
+    ],
+  },
+  '24': {
+    story: `Money locked up for different lengths of time earns different rates. Under the expectations idea, investing for 2 years at the 2-year rate should match rolling two 1-year investments. A forward rate is the one-year rate for a future year that’s hidden inside today’s rates.`,
+    terms: [
+      ['Spot rate', 'today’s rate for a loan of a given length.'],
+      ['Forward rate', 'the future one-year rate implied by today’s spot rates.'],
+      ['Term premium', 'extra yield for tying money up longer.'],
+    ],
+    steps: [
+      'Spot from one-year rates: multiply the (1 + r)’s, take the root, subtract 1.',
+      'Forward: (1 + long spot)<sup>long</sup> ÷ (1 + short spot)<sup>short</sup>, then the root, minus 1.',
+    ],
+  },
+  '25': {
+    story: `Nominal means counted in dollars. Real means counted in what those dollars can buy. If your money grows 8% but prices rise 6%, you can buy only about 2% more stuff (exactly 1.08 ÷ 1.06 − 1 = 1.89%).`,
+    terms: [
+      ['Nominal rate', 'how fast your dollars grow.'],
+      ['Real rate', 'how fast your buying power grows.'],
+      ['Inflation (π)', 'how fast prices rise.'],
+    ],
+    steps: [
+      '(1 + nominal) = (1 + real) × (1 + inflation).',
+      'Real = (1 + nominal) ÷ (1 + inflation) − 1. The shortcut is nominal − inflation.',
+      'For breakeven inflation between a Treasury and TIPS, see the picture on <a href="#tIB">Inflation and Bond Yields</a>.',
+    ],
+  },
+  IB: {
+    story: `A Treasury yield has two jobs: pay investors a real return, and make up for the inflation that will eat into their dollars. So each year’s one-year yield is built from the real return plus that year’s expected inflation. A longer bond’s yield is just the average of the one-year yields over its life. And comparing a regular Treasury with an inflation-protected one (TIPS) reveals how much inflation the market expects: the breakeven.`,
+    terms: [
+      ['R (nominal yield)', 'what a regular Treasury pays, in dollars.'],
+      ['r (real return)', 'growth in buying power. A TIPS yield is a real yield.'],
+      ['π (expected inflation)', 'how fast prices are expected to rise.'],
+      ['TIPS', 'a Treasury whose principal rises with inflation, so its yield doesn’t need an inflation part.'],
+      ['Breakeven inflation', 'R − r: the inflation rate at which a regular Treasury and a TIPS end up exactly as good.'],
+    ],
+    steps: [
+      'Each year’s one-year yield: R = (1 + r)(1 + π) − 1. Shortcut: r + π.',
+      'Longer bond: multiply the (1 + R)’s, take the root, subtract 1.',
+      'Zero price = face ÷ (the product of the (1 + R)’s).',
+      'Breakeven = (1 + R) ÷ (1 + r) − 1. Shortcut: R − r.',
+    ],
+  },
+  YB: {
+    story: `A long Treasury yield is built like a recipe. Start with the one-year yields investors expect over the bond’s life and average them. Then add a term premium, an extra reward for locking money up longer. That’s the whole thing.`,
+    terms: [
+      ['Expected one-year yields', 'what one-year Treasuries are expected to pay each year.'],
+      ['Term premium', 'extra yield for holding the longer bond. Add it once, at the end.'],
+    ],
+    steps: [
+      'Average the one-year yields. Geometric: multiply the (1 + y)’s, take the root, subtract 1.',
+      'Add the term premium once.',
+      'Working backward from a market yield? Term premium = market yield − the average.',
+    ],
+  },
+  '26': {
+    story: `Owning a stock for a year pays you two ways: dividends in cash, and the change in the stock’s price. Total return = dividend yield + capital-gains yield. Turn it around and today’s price is next year’s payoff discounted at the return you require.`,
+    terms: [
+      ['Dividend yield', 'dividend ÷ the price you paid.'],
+      ['Capital-gains yield', 'price change ÷ the price you paid.'],
+      ['Cum- / ex-dividend', 'just before / just after the share stops carrying the next dividend.'],
+    ],
+    steps: [
+      'Payoff at year 1 = dividend + sale price.',
+      'Price today = payoff ÷ (1 + r). Return = payoff ÷ price − 1.',
+      'Holding several years? Discount each dividend, and the sale price, by its own year.',
+    ],
+  },
+  '27': {
+    story: `If a company raises its dividend by the same percentage every year forever, the stock is a growing perpetuity. Its price is next year’s dividend divided by the gap between the return investors require and the growth rate.`,
+    terms: [
+      ['D0 / D1', 'the dividend just paid / the next one. The formula needs D1.'],
+      ['r and g', 'the return investors require, and the dividend growth rate.'],
+    ],
+    steps: [
+      'Given D0? Grow it once: D1 = D0 × (1 + g).',
+      'P0 = D1 ÷ (r − g).',
+      'Next year’s price = P0 × (1 + g). The return splits into D1 ÷ P0 + g.',
+    ],
+  },
+  '28': {
+    story: `Same formula, P0 = D1 ÷ (r − g), but now a different piece is missing. Like any equation with four parts, if you know three you can solve for the fourth. A market price tells you the return investors expect, and comparing value with price tells you whether to buy.`,
+    terms: [
+      ['Intrinsic value', 'what the stock is worth at your required return.'],
+      ['Implied return', 'the return the market price gives you: D1 ÷ price + g.'],
+    ],
+    steps: [
+      'r = D1 ÷ P0 + g.',
+      'g = r − D1 ÷ P0.',
+      'D1 = P0 × (r − g). Buy if value > price.',
+    ],
+  },
+  '29': {
+    story: `Young companies grow fast for a few years, then slow to a normal pace. One growth rate can’t describe that, so split it in two: value each fast-growth dividend one by one, then value everything after as a constant-growth stock (the terminal price), and add them up.`,
+    terms: [
+      ['Terminal price P<sub>N</sub>', 'the stock’s value at year N = D<sub>N+1</sub> ÷ (r − g2).'],
+      ['g1 / g2', 'the fast growth rate for N years / the stable rate after that.'],
+    ],
+    steps: [
+      'Grow the dividend year by year through year N, and discount each one.',
+      'P<sub>N</sub> = D<sub>N+1</sub> ÷ (r − g2). Discount it N years.',
+      'Price = PV of the early dividends + PV of P<sub>N</sub>.',
+    ],
+  },
+};
+
+/* ================================================================ breakeven inflation, pictured (Inflation and Bond Yields) */
+const BE_HTML = `<details class="intro be" open><summary>Picture breakeven inflation</summary><div class="intro-body">
+<div id="beSetup" class="be-setup"></div>
+<div class="be-control"><label for="beAct">Suppose inflation actually averages</label><input class="slide" type="range" id="beAct" min="0" max="10" step="0.1"><output id="beActOut" for="beAct"></output></div>
+<figure class="chart" id="beFig"><figcaption><span class="fig-title" id="beTitle"></span><span class="legend">${legendHTML([['s1', 'Regular Treasury: fixed dollars', 'line'], ['s3', 'TIPS: grows with inflation', 'line']])}</span></figcaption><div class="plot" id="bePlot"></div><div class="tip" hidden></div></figure>
+<p id="beOut" class="be-out" aria-live="polite"></p>
+<p class="be-notes"><b>Where R − r comes from (your notes):</b> a regular Treasury yield R = real rate + expected inflation + term premium. A TIPS yield r = real rate + term premium, with no inflation part, because TIPS pay inflation separately. Subtract them and the real rate and the term premium cancel: <b>R − r = expected inflation</b>. That’s why the breakeven is the market’s inflation forecast.</p>
+</div></details>`;
+
+function drawBE(v, o, mode, st) {
+  const fig = document.getElementById('beFig');
+  if (!fig || !o || !Number.isFinite(o.be)) return;
+  const N = v.N, R = o.spotN, r = o.r, be = o.be, A = 1000, exact = mode === 'exact';
+  const tips = (pi) => A * Math.pow(exact ? (1 + r) * (1 + pi) : 1 + r + pi, N);
+  const tsy = A * Math.pow(1 + R, N);
+  const lo = Math.min(0, Math.floor((be - 0.02) * 100) / 100);
+  const hi = Math.max(0.08, Math.ceil((be + 0.04) * 100) / 100);
+  if (st.beAct == null || st.beAct < lo || st.beAct > hi) st.beAct = Math.round((be + 0.02) * 1000) / 1000;
+  const act = st.beAct;
+  const sl = document.getElementById('beAct');
+  sl.min = +(lo * 100).toFixed(1);
+  sl.max = +(hi * 100).toFixed(1);
+  sl.value = +(act * 100).toFixed(1);
+  sl.setAttribute('aria-valuetext', `${fmt.pct(act, 1)} a year`);
+  document.getElementById('beActOut').textContent = `${fmt.pct(act, 1)} a year`;
+  const yrs = `${N} year${N > 1 ? 's' : ''}`;
+  document.getElementById('beSetup').innerHTML = `<p>You have <b>$1,000</b> to lend the U.S. government for <b>${yrs}</b>, and two bonds to pick from:</p>
+<ul class="bul"><li><b>Regular Treasury:</b> pays a fixed <b>${fmt.pt(R)}</b> a year (this page’s ${N}-year yield). You know today exactly how many dollars you’ll get back: <b>${M(tsy)}</b>. If prices rise faster than expected, those dollars buy less, but the dollar amount never changes.</li>
+<li><b>TIPS:</b> pays a <b>${PT(r)}</b> real return, and its principal is raised by whatever inflation actually happens. More inflation means more dollars.</li></ul>
+<p><b>Breakeven inflation</b> is the inflation rate where both end with the same dollars: <b>${fmt.pt(be)}</b> a year here${exact ? ', from (1 + R) ÷ (1 + r) − 1' : ', from R − r'}. Think of it as an over/under line on inflation. If inflation comes in <b>over</b> the line, TIPS wins. If it comes in <b>under</b>, the regular Treasury wins. Investors set the yields so neither bond is an obvious bargain, so the line is also the market’s best guess of inflation.</p>`;
+  document.getElementById('beTitle').textContent = `What $1,000 grows to in ${yrs}, by the inflation that actually happens`;
+  const xs = Array.from({ length: 81 }, (_, i) => lo + ((hi - lo) * i) / 80);
+  const tAct = tips(act), diff = tAct - tsy;
+  const tie = Math.abs(act - be) < 0.0005;
+  const above = tAct >= tsy;
+  const anchor = act > (lo + hi) / 2 ? 'end' : 'start';
+  const points = tie
+    ? [{ x: act, y: tsy, cls: 'ink', label: `Both ${M(tsy)}`, anchor, pos: 'above' }]
+    : [{ x: act, y: tsy, cls: 's1', label: `Treasury ${M(tsy)}`, anchor, pos: above ? 'below' : 'above' }, { x: act, y: tAct, cls: 's3', label: `TIPS ${M(tAct)}`, anchor, pos: above ? 'above' : 'below' }];
+  drawLine(document.getElementById('bePlot'), fig, {
+    label: 'Dollars from a regular Treasury and from TIPS at each inflation rate, crossing at the breakeven', xs,
+    series: [{ ys: xs.map(() => tsy), cls: 's1' }, { ys: xs.map(tips), cls: 's3' }],
+    bands: [{ x0: lo, x1: be, cls: 's1', alpha: 7, label: 'Treasury wins' }, { x0: be, x1: hi, cls: 's3', alpha: 7, label: 'TIPS wins' }],
+    vrefs: [{ x: be, label: `Breakeven ${fmt.pct(be, 2)}`, row: 1, anchor: be > (lo + hi) / 2 ? 'end' : 'start' }],
+    points, xFmt: fmt.axisPct, yFmt: fmt.axis, H: 250,
+    tip: (i) => `<b>Inflation averages ${fmt.pct(xs[i], 2)}</b><br>Regular Treasury <span class="num">${M(tsy)}</span><br>TIPS <span class="num">${M(tips(xs[i]))}</span>`,
+  });
+  const realT = exact ? (1 + R) / (1 + act) - 1 : R - act;
+  const out = document.getElementById('beOut');
+  out.className = 'be-out ' + (tie ? 'tie' : above ? 'p' : 't');
+  out.innerHTML = `If inflation averages <b>${fmt.pct(act, 1)}</b> a year, the regular Treasury pays exactly <b>${M(tsy)}</b>, same as always, and TIPS pays <b>${M(tAct)}</b>. `
+    + (tie ? `That’s the breakeven, so it’s a tie: neither bond did better.`
+      : above ? `Inflation came in <b>over</b> the ${fmt.pct(be, 2)} line, so <b>TIPS wins by ${M(diff)}</b>. Its payout grew with prices, while the Treasury’s fixed dollars buy less.`
+        : `Inflation came in <b>under</b> the ${fmt.pct(be, 2)} line, so the <b>regular Treasury wins by ${M(-diff)}</b>. Its yield assumed more inflation than actually happened.`)
+    + ` In buying power, TIPS always earns ${PT(r)} a year; at this inflation the Treasury earns ${fmt.pct(realT, 2)} a year.`;
+}
+
+TOPICS.forEach((t) => { if (INTROS[t.id]) t.intro = INTROS[t.id]; });
+(() => {
+  const ib = TOPICS.find((t) => t.id === 'IB');
+  if (!ib) return;
+  ib.introExtra = BE_HTML;
+  ib.drawIntro = drawBE;
+  ib.wireIntro = (main, st) => {
+    const sl = main.querySelector('#beAct');
+    if (sl) sl.addEventListener('input', () => { st.beAct = +sl.value / 100; drawBE(st.v, st.o, st.mode, st); });
+  };
+})();
 
 boot();
 })();
